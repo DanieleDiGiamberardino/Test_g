@@ -1,9 +1,11 @@
 import './style.css';
 import { ShipScene } from './3d/ShipScene.js';
+import { SoundFX } from './core/SoundFX.js';
 import { GameEngine } from './core/GameEngine.js';
-import { MODULES, TRAITS, BIOMES } from './data/gameData.js';
+import { MODULES, TRAITS, BIOMES, TECH_TREE } from './data/gameData.js';
 
 const shipScene = new ShipScene(document.getElementById('canvas-container'));
+const soundFX = new SoundFX();
 
 const elSector = document.getElementById('sector-badge');
 const elHull = document.getElementById('val-hull');
@@ -19,8 +21,15 @@ const elLogFeed = document.getElementById('log-feed');
 const elDock = document.getElementById('bottom-dock');
 const btnAiMode = document.getElementById('btn-aimode');
 const selProtocol = document.getElementById('sel-protocol');
+const btnMute = document.getElementById('btn-mute');
 
+let hangarTab = 'workshop'; // 'workshop' | 'tech'
 let engine;
+
+function updateMuteIcon() {
+  btnMute.textContent = soundFX.muted ? '🔇' : '🔊';
+}
+updateMuteIcon();
 
 function renderUI(lightUpdate = false) {
   const s = engine.state;
@@ -151,7 +160,7 @@ function renderBottomDock() {
       <div class="dilemma-choices">
         ${d.choices
           .map((c, idx) => {
-            const chance = engine.getChoiceChance(c);
+            const chance = engine.getChoiceChance(c, idx);
             const isAi = idx === aiIdx;
             const roleTag = c.roleBonus ? ` • +${c.roleBonus}` : '';
             return `
@@ -171,7 +180,7 @@ function renderBottomDock() {
     return;
   }
 
-  // 2. FINE SETTORE (BIVIO ROTTE BIOMA)
+  // 2. FINE SETTORE
   if (engine.sectorComplete) {
     const biomeCards = engine.sectorOptions
       .map((bId) => {
@@ -206,55 +215,121 @@ function renderBottomDock() {
     return;
   }
 
-  // 3. HANGAR
+  // 3. HANGAR (Con Tab OFFICINA | ALBERO TECH)
   if (s.mode === 'HANGAR') {
-    const repairCost = Math.ceil((s.maxHull - s.hull) * 0.4);
-    const fuelCost = Math.ceil((s.maxFuel - s.fuel) * 0.25);
-    const negTraits = engine.countNegativeTraits();
-    const cureCost = negTraits * 15;
-
-    const modsHtml = Object.values(MODULES)
-      .map((m) => {
-        const owned = s.modules[m.id];
-        return `
-          <button class="mod-card ${owned ? 'owned' : ''}" data-buy="${m.id}" ${owned ? 'disabled' : ''}>
-            <strong>${m.name} ${owned ? '✓ MONTATO' : `(${m.costScrap} R)`}</strong>
-            <small>${m.desc}</small>
+    const tabsHeader = `
+      <div class="dock-tabs">
+        <div class="tab-group">
+          <button class="tab-btn ${hangarTab === 'workshop' ? 'active' : ''}" data-tab="workshop">
+            🛠️ OFFICINA & MODULI
           </button>
-        `;
-      })
-      .join('');
-
-    elDock.innerHTML = `
-      <div class="hangar-grid">
-        <div class="hangar-actions">
-          <button id="btn-repair" ${repairCost === 0 ? 'disabled' : ''}>
-            🔧 Ripara Scafo (${repairCost} R)
-          </button>
-          <button id="btn-refuel" ${fuelCost === 0 ? 'disabled' : ''}>
-            ⛽ Rifornisci Fuel (${fuelCost} R)
-          </button>
-          <button id="btn-cure" ${negTraits === 0 ? 'disabled' : ''}>
-            🩺 Infermeria (${cureCost} R • ${negTraits} malus)
-          </button>
-          <button id="btn-hull-up">
-            ⚡ Telaio Lv.${s.hullLevel + 1} (${s.hullLevel} Nuclei) → +1 Energia
+          <button class="tab-btn ${hangarTab === 'tech' ? 'active' : ''}" data-tab="tech">
+            🧬 ALBERO TECNOLOGICO (${s.techs.length}/${TECH_TREE.length})
           </button>
         </div>
-
-        <div class="modules-grid">${modsHtml}</div>
-
-        <button id="btn-launch" class="btn-launch">🚀 LANCIA<br/>SPEDIZIONE</button>
+        <button id="btn-launch" class="btn-launch" style="padding:7px 18px; font-size:0.82rem;">
+          🚀 LANCIA SPEDIZIONE
+        </button>
       </div>
     `;
 
-    document.getElementById('btn-repair').addEventListener('click', () => engine.repairHull());
-    document.getElementById('btn-refuel').addEventListener('click', () => engine.refuel());
-    document.getElementById('btn-cure').addEventListener('click', () => engine.cureCrew());
-    document.getElementById('btn-hull-up').addEventListener('click', () => engine.upgradeHull());
+    if (hangarTab === 'workshop') {
+      const repairCost = Math.ceil((s.maxHull - s.hull) * 0.4);
+      const fuelCost = Math.ceil((s.maxFuel - s.fuel) * 0.25);
+      const negTraits = engine.countNegativeTraits();
+      const cureCost = negTraits * 15;
+
+      const modsHtml = Object.values(MODULES)
+        .map((m) => {
+          const owned = s.modules[m.id];
+          return `
+            <button class="mod-card ${owned ? 'owned' : ''}" data-buy="${m.id}" ${owned ? 'disabled' : ''}>
+              <strong>${m.name} ${owned ? '✓ MONTATO' : `(${m.costScrap} R)`}</strong>
+              <small>${m.desc}</small>
+            </button>
+          `;
+        })
+        .join('');
+
+      elDock.innerHTML = `
+        ${tabsHeader}
+        <div class="hangar-grid" style="grid-template-columns: 1fr 2fr;">
+          <div class="hangar-actions">
+            <button id="btn-repair" ${repairCost === 0 ? 'disabled' : ''}>
+              🔧 Ripara Scafo (${repairCost} R)
+            </button>
+            <button id="btn-refuel" ${fuelCost === 0 ? 'disabled' : ''}>
+              ⛽ Rifornisci Fuel (${fuelCost} R)
+            </button>
+            <button id="btn-cure" ${negTraits === 0 ? 'disabled' : ''}>
+              🩺 Infermeria (${cureCost} R • ${negTraits} malus)
+            </button>
+            <button id="btn-hull-up">
+              ⚡ Telaio Lv.${s.hullLevel + 1} (${s.hullLevel} Nuclei) → +1 Energia
+            </button>
+          </div>
+          <div class="modules-grid">${modsHtml}</div>
+        </div>
+      `;
+
+      document.getElementById('btn-repair').addEventListener('click', () => engine.repairHull());
+      document.getElementById('btn-refuel').addEventListener('click', () => engine.refuel());
+      document.getElementById('btn-cure').addEventListener('click', () => engine.cureCrew());
+      document.getElementById('btn-hull-up').addEventListener('click', () => engine.upgradeHull());
+      elDock.querySelectorAll('[data-buy]').forEach((btn) => {
+        btn.addEventListener('click', () => engine.buyModule(btn.dataset.buy));
+      });
+    } else {
+      // TAB ALBERO TECNOLOGICO
+      const branches = ['INDUSTRIA', 'AUTOMAZIONE IA', 'SOPRAVVIVENZA'];
+      const colsHtml = branches
+        .map((bName) => {
+          const items = TECH_TREE.filter((t) => t.branch === bName);
+          const cards = items
+            .map((t) => {
+              const unlocked = engine.hasTech(t.id);
+              const locked = t.requires && !engine.hasTech(t.requires);
+              const costLabel =
+                t.costCores > 0 ? `${t.costScrap} R • ${t.costCores} N` : `${t.costScrap} R`;
+              return `
+                <button
+                  class="tech-card ${unlocked ? 'unlocked' : locked ? 'locked' : ''}"
+                  data-tech="${t.id}"
+                  ${unlocked || locked ? 'disabled' : ''}
+                >
+                  <strong>${t.name} ${unlocked ? '✓' : locked ? '🔒' : `(${costLabel})`}</strong>
+                  <small>${t.desc}</small>
+                </button>
+              `;
+            })
+            .join('');
+          return `
+            <div class="tech-col">
+              <div class="tech-col-title">${bName}</div>
+              ${cards}
+            </div>
+          `;
+        })
+        .join('');
+
+      elDock.innerHTML = `
+        ${tabsHeader}
+        <div class="tech-branches">${colsHtml}</div>
+      `;
+
+      elDock.querySelectorAll('[data-tech]').forEach((btn) => {
+        btn.addEventListener('click', () => engine.unlockTech(btn.dataset.tech));
+      });
+    }
+
+    // Eventi comuni Header Hangar
     document.getElementById('btn-launch').addEventListener('click', () => engine.launchExpedition());
-    elDock.querySelectorAll('[data-buy]').forEach((btn) => {
-      btn.addEventListener('click', () => engine.buyModule(btn.dataset.buy));
+    elDock.querySelectorAll('[data-tab]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        hangarTab = btn.dataset.tab;
+        soundFX.playClick();
+        renderBottomDock();
+      });
     });
     return;
   }
@@ -274,7 +349,7 @@ function renderBottomDock() {
   document.getElementById('btn-abort').addEventListener('click', () => engine.returnToHangar(false));
 }
 
-engine = new GameEngine(shipScene, renderUI);
+engine = new GameEngine(shipScene, soundFX, renderUI);
 renderUI();
 
 document.querySelectorAll('.btn-speed').forEach((btn) => {
@@ -287,6 +362,38 @@ document.querySelectorAll('.btn-speed').forEach((btn) => {
 
 btnAiMode.addEventListener('click', () => engine.toggleAiMode());
 selProtocol.addEventListener('change', (e) => engine.setProtocol(e.target.value));
+btnMute.addEventListener('click', () => {
+  soundFX.toggleMute();
+  updateMuteIcon();
+});
 document.getElementById('btn-reset').addEventListener('click', () => {
   if (confirm('Vuoi azzerare i progressi salvati?')) engine.resetSave();
+});
+// Sblocca l'AudioContext al primo clic ovunque così la musica parte subito in Hangar
+window.addEventListener(
+  'pointerdown',
+  () => {
+    if (!soundFX.muted) {
+      soundFX.init();
+      engine.sync3D();
+    }
+  },
+  { once: true }
+);
+
+// Mini-Mixer Audio
+const btnMixer = document.getElementById('btn-mixer');
+const elMixer = document.getElementById('audio-mixer');
+btnMixer.addEventListener('click', () => {
+  elMixer.classList.toggle('hidden');
+  soundFX.playClick();
+});
+
+['music', 'sfx', 'engine'].forEach((ch) => {
+  const slider = document.getElementById(`vol-${ch}`);
+  slider.value = soundFX.volumes[ch];
+  slider.addEventListener('input', (e) => {
+    soundFX.init();
+    soundFX.setVolume(ch, e.target.value);
+  });
 });

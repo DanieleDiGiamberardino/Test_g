@@ -25,6 +25,15 @@
         </div>
 
         <div class="controls-right">
+          <div class="audio-wrap">
+         <button id="btn-mute" title="Audio ON/OFF">🔊</button>
+         <button id="btn-mixer" title="Mixer Audio">🎚️</button>
+         <div id="audio-mixer" class="mixer-popover hidden">
+           <label><span>MUSICA</span><input type="range" id="vol-music" min="0" max="1" step="0.05" /></label>
+           <label><span>EFFETTI</span><input type="range" id="vol-sfx" min="0" max="1" step="0.05" /></label>
+           <label><span>MOTORI</span><input type="range" id="vol-engine" min="0" max="1" step="0.05" /></label>
+         </div>
+       </div>
           <button id="btn-aimode" class="btn-ai">AUTO (60s)</button>
           <select id="sel-protocol" class="select-proto">
             <option value="cauto">IA: CAUTO</option>
@@ -59,7 +68,7 @@
           <hr />
           <div class="panel-title"><span>EQUIPAGGIO</span></div>
           <div id="crew-list" class="crew-list"></div>
-          
+
         </aside>
 
         <!-- TELEMETRIA LOG -->

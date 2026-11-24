@@ -282,3 +282,65 @@ export const DILEMMAS = [
     ],
   },
 ];
+
+export const TECH_TREE = [
+  // RAMO 1: INDUSTRIA
+  {
+    id: 'salvage_magnet',
+    branch: 'INDUSTRIA',
+    name: 'Magnete di Recupero',
+    costScrap: 70,
+    costCores: 0,
+    requires: null,
+    desc: '+25% Rottami passivi ad ogni nodo esplorato.',
+  },
+  {
+    id: 'core_extractor',
+    branch: 'INDUSTRIA',
+    name: 'Estrattore Xeno',
+    costScrap: 110,
+    costCores: 1,
+    requires: 'salvage_magnet',
+    desc: 'Garantisce +1 Nucleo bonus ogni volta che completi un settore.',
+  },
+
+  // RAMO 2: AUTOMAZIONE IA
+  {
+    id: 'auto_retreat',
+    branch: 'AUTOMAZIONE IA',
+    name: 'Protocollo Salva-Vita',
+    costScrap: 85,
+    costCores: 0,
+    requires: null,
+    desc: 'Rientro automatico SICURO in Hangar se Scafo ≤ 25% o Fuel ≤ 12%.',
+  },
+  {
+    id: 'smart_ai',
+    branch: 'AUTOMAZIONE IA',
+    name: 'Rete Neurale Tattica',
+    costScrap: 120,
+    costCores: 2,
+    requires: 'auto_retreat',
+    desc: '+8% successo sulle scelte consigliate dall’IA (🤖).',
+  },
+
+  // RAMO 3: SOPRAVVIVENZA
+  {
+    id: 'nanobot_hull',
+    branch: 'SOPRAVVIVENZA',
+    name: 'Naniti Riparatori',
+    costScrap: 80,
+    costCores: 0,
+    requires: null,
+    desc: 'Ripara automaticamente +4 Scafo a ogni nodo superato.',
+  },
+  {
+    id: 'cryo_fuel',
+    branch: 'SOPRAVVIVENZA',
+    name: 'Iniettori Criogenici',
+    costScrap: 130,
+    costCores: 2,
+    requires: 'nanobot_hull',
+    desc: '-15% consumo carburante e +1 Energia Reattore permanente.',
+  },
+];

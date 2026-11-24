@@ -427,3 +427,110 @@ hr {
   color: #94a3b8;
   line-height: 1.3;
 }
+/* TAB HANGAR & ALBERO TECNOLOGICO */
+.dock-tabs {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+  padding-bottom: 8px;
+}
+
+.tab-group {
+  display: flex;
+  gap: 6px;
+}
+
+.tab-btn.active {
+  background: rgba(56, 189, 248, 0.22);
+  border-color: #38bdf8;
+  color: #38bdf8;
+  font-weight: bold;
+}
+
+.tech-branches {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.tech-col {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.tech-col-title {
+  font-size: 0.7rem;
+  color: #38bdf8;
+  letter-spacing: 0.8px;
+  font-weight: bold;
+}
+
+.tech-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
+  gap: 3px;
+  padding: 8px 10px;
+}
+
+.tech-card.unlocked {
+  border-color: #22c55e;
+  background: rgba(34, 197, 94, 0.16);
+  cursor: default;
+}
+
+.tech-card.locked {
+  opacity: 0.5;
+  border-style: dashed;
+}
+
+.tech-card small {
+  font-size: 0.67rem;
+  color: #94a3b8;
+  line-height: 1.25;
+}
+/* MINI-MIXER AUDIO */
+.audio-wrap {
+  position: relative;
+  display: flex;
+  gap: 4px;
+}
+
+.mixer-popover {
+  position: absolute;
+  top: 38px;
+  right: 0;
+  width: 190px;
+  background: rgba(10, 15, 26, 0.96);
+  border: 1px solid rgba(56, 189, 248, 0.4);
+  border-radius: 8px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 20;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+
+.mixer-popover.hidden {
+  display: none;
+}
+
+.mixer-popover label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.7rem;
+  color: #94a3b8;
+}
+
+.mixer-popover input[type='range'] {
+  width: 95px;
+  accent-color: #38bdf8;
+  cursor: pointer;
+}

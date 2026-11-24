@@ -18,7 +18,7 @@ export class GameEngine {
 
     this.sync3D();
     this.lastTick = performance.now();
-    this.loop();
+    requestAnimationFrame(() => this.loop());
   }
 
   getDefaultState() {
@@ -116,12 +116,23 @@ export class GameEngine {
     );
   }
 
-  sync3D() {
-    Object.keys(this.state.modules).forEach((modKey) => {
-      this.shipScene.setModuleActive(modKey, this.state.modules[modKey]);
-      const effectiveSpeed = isMoving
+    sync3D() {
+        Object.keys(this.state.modules).forEach((modKey) => {
+        this.shipScene.setModuleActive(modKey, this.state.modules[modKey]);
+        });
+
+        const tint = this.state.mode === 'HANGAR' ? 0x04070e : this.getCurrentBiome().bgHex;
+        if (this.shipScene.setBiomeTint) {
+        this.shipScene.setBiomeTint(tint);
+        }
+
+        const isMoving =
+        this.state.mode === 'EXPEDITION' && !this.activeDilemma && !this.sectorComplete;
+        const effectiveSpeed = isMoving
         ? this.state.speed * (0.6 + this.state.power.engines * 0.25 + this.countTrait('asso') * 0.15)
         : 0;
+
+        this.shipScene.setSpeed(effectiveSpeed);
 
         this.sfx.setContext({
         mode: this.state.mode,
@@ -129,22 +140,7 @@ export class GameEngine {
         speed: effectiveSpeed,
         inDilemma: Boolean(this.activeDilemma),
         });
-    });
-
-    const tint = this.state.mode === 'HANGAR' ? 0x04070e : this.getCurrentBiome().bgHex;
-    if (this.shipScene.setBiomeTint) {
-      this.shipScene.setBiomeTint(tint);
     }
-
-    const isMoving =
-      this.state.mode === 'EXPEDITION' && !this.activeDilemma && !this.sectorComplete;
-    if (!isMoving) {
-      this.shipScene.setSpeed(0);
-    } else {
-      const engineBoost = 0.6 + this.state.power.engines * 0.25 + this.countTrait('asso') * 0.15;
-      this.shipScene.setSpeed(this.state.speed * engineBoost);
-    }
-  }
 
   // --- REATTORE ---
   adjustPower(system, delta) {

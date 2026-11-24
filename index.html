@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="it">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>DERELICT // 3D Salvage Idle</title>
+  </head>
+  <body>
+    <div id="canvas-container"></div>
+
+    <!-- HUD Sovrapposto -->
+    <div id="hud">
+      <header class="hud-panel top-bar">
+        <div class="brand">
+          <span class="dot"></span>
+          <strong>DERELICT</strong> <span class="sub">// PROTOTIPO 3D</span>
+        </div>
+        <div class="speed-controls">
+          <span>PROPULSIONE:</span>
+          <button class="btn-speed" data-speed="0">HANGAR</button>
+          <button class="btn-speed active" data-speed="1">1x</button>
+          <button class="btn-speed" data-speed="2">2x</button>
+          <button class="btn-speed" data-speed="3">3x</button>
+        </div>
+      </header>
+
+      <aside class="hud-panel side-panel">
+        <h3>HARDPOINT SCAFO (3D)</h3>
+        <p class="hint">Clicca per montare/smontare i moduli sulla nave:</p>
+        
+        <button class="btn-mod" data-mod="drill">
+          <span>PRUA: Trivella Laser</span>
+          <span class="badge">OFF</span>
+        </button>
+        <button class="btn-mod" data-mod="tanks">
+          <span>FIANCATE: Serbatoi Extra</span>
+          <span class="badge">OFF</span>
+        </button>
+        <button class="btn-mod" data-mod="scanner">
+          <span>DORSO: Scanner Profondo</span>
+          <span class="badge">OFF</span>
+        </button>
+        <button class="btn-mod" data-mod="shield">
+          <span>SCAFO: Scudo Deflettore</span>
+          <span class="badge">OFF</span>
+        </button>
+
+        <hr />
+        <button id="btn-damage" class="btn-danger">SIMULA IMPATTO SCAFO</button>
+        <p class="hint" style="margin-top: 10px;">
+          🖱️ Trascina per ruotare • Rotellina per zoom
+        </p>
+      </aside>
+    </div>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

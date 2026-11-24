@@ -8,49 +8,72 @@
   <body>
     <div id="canvas-container"></div>
 
-    <!-- HUD Sovrapposto -->
     <div id="hud">
+      <!-- BARRA SUPERIORE -->
       <header class="hud-panel top-bar">
         <div class="brand">
           <span class="dot"></span>
-          <strong>DERELICT</strong> <span class="sub">// PROTOTIPO 3D</span>
+          <strong>DERELICT</strong>
+          <span id="sector-badge" class="badge-sector">HANGAR</span>
         </div>
-        <div class="speed-controls">
-          <span>PROPULSIONE:</span>
-          <button class="btn-speed" data-speed="0">HANGAR</button>
-          <button class="btn-speed active" data-speed="1">1x</button>
-          <button class="btn-speed" data-speed="2">2x</button>
-          <button class="btn-speed" data-speed="3">3x</button>
+
+        <div class="resources">
+          <div class="res"><span>SCAFO</span><strong id="val-hull">100/100</strong></div>
+          <div class="res"><span>FUEL</span><strong id="val-fuel">100/100</strong></div>
+          <div class="res accent"><span>ROTTAMI</span><strong id="val-scrap">50</strong></div>
+          <div class="res alien"><span>NUCLEI</span><strong id="val-cores">0</strong></div>
+        </div>
+
+        <div class="controls-right">
+          <button id="btn-aimode" class="btn-ai">AUTO (60s)</button>
+          <select id="sel-protocol" class="select-proto">
+            <option value="cauto">IA: CAUTO</option>
+            <option value="avido">IA: AVIDO</option>
+            <option value="sopravvivenza">IA: SOPRAVV.</option>
+          </select>
+          <div class="speed-group">
+            <button class="btn-speed active" data-speed="1">1x</button>
+            <button class="btn-speed" data-speed="2">2x</button>
+            <button class="btn-speed" data-speed="3">3x</button>
+          </div>
         </div>
       </header>
 
-      <aside class="hud-panel side-panel">
-        <h3>HARDPOINT SCAFO (3D)</h3>
-        <p class="hint">Clicca per montare/smontare i moduli sulla nave:</p>
-        
-        <button class="btn-mod" data-mod="drill">
-          <span>PRUA: Trivella Laser</span>
-          <span class="badge">OFF</span>
-        </button>
-        <button class="btn-mod" data-mod="tanks">
-          <span>FIANCATE: Serbatoi Extra</span>
-          <span class="badge">OFF</span>
-        </button>
-        <button class="btn-mod" data-mod="scanner">
-          <span>DORSO: Scanner Profondo</span>
-          <span class="badge">OFF</span>
-        </button>
-        <button class="btn-mod" data-mod="shield">
-          <span>SCAFO: Scudo Deflettore</span>
-          <span class="badge">OFF</span>
-        </button>
+      <!-- AREA CENTRALE (SINISTRA + DESTRA, CENTRO LIBERO PER IL 3D) -->
+      <div class="middle-row">
+        <!-- REATTORE -->
+        <aside class="hud-panel left-panel">
+          <div class="panel-title">
+            <span>REATTORE</span>
+            <span id="power-free" class="sub-tag">LIBERI: 0</span>
+          </div>
+          <div id="reactor-controls" class="reactor-list"></div>
 
-        <hr />
-        <button id="btn-damage" class="btn-danger">SIMULA IMPATTO SCAFO</button>
-        <p class="hint" style="margin-top: 10px;">
-          🖱️ Trascina per ruotare • Rotellina per zoom
-        </p>
-      </aside>
+          <hr />
+          <div class="panel-title"><span>PROGRESSO NODO</span></div>
+          <div class="progress-wrap">
+            <div id="node-bar" class="progress-fill"></div>
+          </div>
+          <div id="node-label" class="hint">In attesa di lancio...</div>
+
+          <hr />
+          <div class="panel-title"><span>EQUIPAGGIO</span></div>
+          <div id="crew-list" class="crew-list"></div>
+          
+        </aside>
+
+        <!-- TELEMETRIA LOG -->
+        <aside class="hud-panel right-panel">
+          <div class="panel-title">
+            <span>TELEMETRIA</span>
+            <button id="btn-reset" class="btn-mini">RESET</button>
+          </div>
+          <div id="log-feed" class="log-feed"></div>
+        </aside>
+      </div>
+
+      <!-- DOCK INFERIORE (HANGAR / DILEMMA / FINE SETTORE) -->
+      <footer id="bottom-dock" class="hud-panel bottom-dock"></footer>
     </div>
 
     <script type="module" src="/src/main.js"></script>

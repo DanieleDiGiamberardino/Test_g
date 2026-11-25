@@ -6,6 +6,10 @@ export class ShipScene {
     this.container = container;
     this.speedMultiplier = 0;
     this.damageFlash = 0;
+    this.explosionFlash = 0;
+    this.ghostMode = false;
+    this.hunterActive = false;
+    this.hunterPassPhase = 0;
     this.clock = new THREE.Clock();
 
     this.initScene();
@@ -13,6 +17,7 @@ export class ShipScene {
     this.initStarfield();
     this.initDebrisField();
     this.buildShip();
+    this.buildHunter();
     this.initEngineParticles();
 
     window.addEventListener('resize', () => this.onResize());
@@ -47,24 +52,24 @@ export class ShipScene {
   }
 
   initLights() {
-    // Luce ambientale bicolore (spazio freddo sopra, riflesso caldo sotto)
-    const hemi = new THREE.HemisphereLight(0x7dd3fc, 0x1e293b, 0.9);
-    this.scene.add(hemi);
+    this.hemiLight = new THREE.HemisphereLight(0x7dd3fc, 0x1e293b, 0.9);
+    this.scene.add(this.hemiLight);
 
-    // Luce solare principale
-    const keyLight = new THREE.DirectionalLight(0xf0f9ff, 2.6);
-    keyLight.position.set(10, 12, 8);
-    this.scene.add(keyLight);
+    this.keyLight = new THREE.DirectionalLight(0xf0f9ff, 2.6);
+    this.keyLight.position.set(10, 12, 8);
+    this.scene.add(this.keyLight);
 
-    // Controluce industriale arancione per staccare i profili dello scafo
-    const rimLight = new THREE.DirectionalLight(0xf59e0b, 1.8);
-    rimLight.position.set(-10, -5, -8);
-    this.scene.add(rimLight);
+    this.rimLight = new THREE.DirectionalLight(0xf59e0b, 1.8);
+    this.rimLight.position.set(-10, -5, -8);
+    this.scene.add(this.rimLight);
 
-    // Luce rossa di allarme per gli impatti
     this.damageLight = new THREE.PointLight(0xef4444, 0, 15);
     this.damageLight.position.set(0, 2.5, 2);
     this.scene.add(this.damageLight);
+
+    this.explosionLight = new THREE.PointLight(0xc084fc, 0, 28);
+    this.explosionLight.position.set(4, 3, -4);
+    this.scene.add(this.explosionLight);
   }
 
   initStarfield() {
@@ -145,7 +150,6 @@ export class ShipScene {
   }
 
   placeDebris(mesh, randomZ = false) {
-    // Mantiene un corridoio libero intorno alla nave per evitare compenetrazioni
     let x, y;
     do {
       x = (Math.random() - 0.5) * 44;
@@ -155,17 +159,17 @@ export class ShipScene {
     mesh.position.set(x, y, randomZ ? (Math.random() - 0.5) * 90 : -55 - Math.random() * 25);
   }
 
-  buildShip() {
+ buildShip() {
     this.shipGroup = new THREE.Group();
     this.scene.add(this.shipGroup);
 
-    // Palette materiali industriali
-    const hullPrimary = new THREE.MeshStandardMaterial({
+    // Materiali salvati su `this` così possiamo cambiare colore col Telaio 3D
+    this.hullPrimaryMat = new THREE.MeshStandardMaterial({
       color: 0x526277,
       roughness: 0.48,
       metalness: 0.72,
     });
-    const hullArmor = new THREE.MeshStandardMaterial({
+    this.hullArmorMat = new THREE.MeshStandardMaterial({
       color: 0x2a3547,
       roughness: 0.55,
       metalness: 0.82,
@@ -175,12 +179,12 @@ export class ShipScene {
       roughness: 0.6,
       metalness: 0.85,
     });
-    const hazardOrange = new THREE.MeshStandardMaterial({
+    this.hazardMat = new THREE.MeshStandardMaterial({
       color: 0xea580c,
       roughness: 0.4,
       metalness: 0.35,
     });
-    const cockpitGlass = new THREE.MeshStandardMaterial({
+    this.cockpitGlassMat = new THREE.MeshStandardMaterial({
       color: 0x38bdf8,
       emissive: 0x0284c7,
       emissiveIntensity: 1.1,
@@ -188,17 +192,20 @@ export class ShipScene {
       metalness: 0.95,
     });
 
-    // === 1. FUSOLIERA CENTRALE CORAZZATA ===
+    // Alias locali per non cambiare il resto del metodo
+    const hullPrimary = this.hullPrimaryMat;
+    const hullArmor = this.hullArmorMat;
+    const hazardOrange = this.hazardMat;
+
+    // === 1. FUSOLIERA ===
     const coreHull = new THREE.Mesh(new THREE.BoxGeometry(1.75, 1.05, 3.2), hullPrimary);
     coreHull.position.set(0, 0, 0.2);
     this.shipGroup.add(coreHull);
 
-    // Dorsale superiore rastremata (spina tecnica)
     const spine = new THREE.Mesh(new THREE.BoxGeometry(1.05, 0.38, 2.7), hullArmor);
     spine.position.set(0, 0.66, 0.35);
     this.shipGroup.add(spine);
 
-    // Nervature corazzate laterali + bande arancioni
     [-0.92, 0.92].forEach((x) => {
       const sidePlate = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.68, 2.4), hullArmor);
       sidePlate.position.set(x, -0.02, 0.2);
@@ -209,12 +216,11 @@ export class ShipScene {
       this.shipGroup.add(stripe);
     });
 
-    // Chiglia inferiore (stiva cargo)
     const belly = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.32, 2.6), frameDark);
     belly.position.set(0, -0.62, 0.25);
     this.shipGroup.add(belly);
 
-    // === 2. PRUA AFFUSOLATA (verso -Z) ===
+    // === 2. PRUA ===
     const bowMain = new THREE.Mesh(
       new THREE.CylinderGeometry(0.42, 0.95, 1.65, 6).rotateX(-Math.PI / 2),
       hullPrimary
@@ -223,12 +229,11 @@ export class ShipScene {
     bowMain.position.set(0, -0.04, -2.15);
     this.shipGroup.add(bowMain);
 
-    // Paraurti/rostro industriale in punta
     const bowCap = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.35, 0.35), hazardOrange);
     bowCap.position.set(0, -0.06, -3.02);
     this.shipGroup.add(bowCap);
 
-    // === 3. PONTE DI COMANDO SOPRAELEVATO ===
+    // === 3. PONTE DI COMANDO ===
     const bridgeBase = new THREE.Mesh(new THREE.BoxGeometry(1.15, 0.45, 1.3), hullArmor);
     bridgeBase.position.set(0, 0.75, -0.85);
     this.shipGroup.add(bridgeBase);
@@ -241,13 +246,11 @@ export class ShipScene {
     bridgeCanopy.position.set(0, 1.05, -0.85);
     this.shipGroup.add(bridgeCanopy);
 
-    // Visiera panoramica luminosa
-    const visorFront = new THREE.Mesh(new THREE.BoxGeometry(0.92, 0.24, 0.14), cockpitGlass);
+    const visorFront = new THREE.Mesh(new THREE.BoxGeometry(0.92, 0.24, 0.14), this.cockpitGlassMat);
     visorFront.position.set(0, 1.0, -1.45);
     visorFront.rotation.x = -0.25;
     this.shipGroup.add(visorFront);
 
-    // Antennine anteriori
     const antennaGeo = new THREE.CylinderGeometry(0.018, 0.025, 0.8, 6);
     const ant1 = new THREE.Mesh(antennaGeo, frameDark);
     ant1.position.set(0.42, 1.35, -0.45);
@@ -256,7 +259,7 @@ export class ShipScene {
     ant2.position.set(-0.42, 1.22, -0.55);
     this.shipGroup.add(ant1, ant2);
 
-    // === 4. ALI + GONDOLE MOTORI LATERALI ===
+    // === 4. ALI & MOTORI ===
     this.flames = [];
     this.navLights = [];
 
@@ -279,28 +282,23 @@ export class ShipScene {
     });
 
     [-1, 1].forEach((side) => {
-      // Pilone alare inclinato
       const pylon = new THREE.Mesh(pylonGeo, hullArmor);
       pylon.position.set(side * 1.35, -0.1, 0.85);
       pylon.rotation.z = side * -0.14;
       this.shipGroup.add(pylon);
 
-      // Gondola motore
       const nacelle = new THREE.Mesh(nacelleGeo, hullPrimary);
       nacelle.position.set(side * 2.0, -0.18, 1.1);
       this.shipGroup.add(nacelle);
 
-      // Anello presa d'aria anteriore
       const intake = new THREE.Mesh(intakeRingGeo, hazardOrange);
       intake.position.set(side * 2.0, -0.18, -0.05);
       this.shipGroup.add(intake);
 
-      // Ugello posteriore
       const nozzle = new THREE.Mesh(nozzleGeo, frameDark);
       nozzle.position.set(side * 2.0, -0.18, 2.38);
       this.shipGroup.add(nozzle);
 
-      // Doppia fiamma (esterna azzurra + nucleo bianco)
       const flameGroup = new THREE.Group();
       flameGroup.position.set(side * 2.0, -0.18, 2.75);
       const outer = new THREE.Mesh(flameOuterGeo, flameOuterMat);
@@ -311,7 +309,6 @@ export class ShipScene {
       this.shipGroup.add(flameGroup);
       this.flames.push(flameGroup);
 
-      // Luci di navigazione (Rosso a sinistra, Verde a destra)
       const navColor = side < 0 ? 0xef4444 : 0x22c55e;
       const navMesh = new THREE.Mesh(
         new THREE.SphereGeometry(0.08, 8, 8),
@@ -322,7 +319,6 @@ export class ShipScene {
       this.navLights.push(navMesh);
     });
 
-    // Propulsore ausiliario centrale
     const centerNozzle = new THREE.Mesh(
       new THREE.CylinderGeometry(0.26, 0.34, 0.5, 10).rotateX(Math.PI / 2),
       frameDark
@@ -339,18 +335,18 @@ export class ShipScene {
     this.shipGroup.add(centerFlame);
     this.flames.push(centerFlame);
 
-    // Luce dinamica dei motori
     this.engineLight = new THREE.PointLight(0x38bdf8, 0, 10);
     this.engineLight.position.set(0, -0.1, 3.3);
     this.shipGroup.add(this.engineLight);
 
-    // === 5. MODULI 3D MONTABILI ===
+    // === 5. MODULI & EXTRA TELAI ===
     this.modules = {};
     this.buildModules(hullArmor, frameDark, hazardOrange);
+    this.buildChassisExtras(frameDark);
   }
 
   buildModules(hullArmor, frameDark, hazardOrange) {
-    // 1. TRIVELLA LASER (Prua avanzata con doppie pinze + punta rotante)
+    // 1. TRIVELLA
     const drillGroup = new THREE.Group();
     const housing = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.55, 0.75), frameDark);
     housing.position.set(0, -0.08, -3.2);
@@ -369,7 +365,6 @@ export class ShipScene {
     tipGlow.position.z = -1.28;
     this.drillHead.add(auger, tipGlow);
 
-    // Bracci stabilizzatori laterali
     [-0.52, 0.52].forEach((x) => {
       const arm = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.16, 1.15), hullArmor);
       arm.position.set(x, -0.08, -3.7);
@@ -381,7 +376,7 @@ export class ShipScene {
     this.shipGroup.add(drillGroup);
     this.modules.drill = drillGroup;
 
-    // 2. SERBATOI EXTRA (Doppi cilindri pressurizzati sui fianchi anteriori)
+    // 2. SERBATOI
     const tanksGroup = new THREE.Group();
     const tankBodyGeo = new THREE.CylinderGeometry(0.32, 0.32, 1.7, 14).rotateX(Math.PI / 2);
     const tankCapGeo = new THREE.SphereGeometry(0.32, 12, 10);
@@ -406,7 +401,7 @@ export class ShipScene {
     this.shipGroup.add(tanksGroup);
     this.modules.tanks = tanksGroup;
 
-    // 3. SCANNER PROFONDO (Torretta dorsale rotante con parabola e anello olo)
+    // 3. SCANNER
     const scannerGroup = new THREE.Group();
     const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.34, 0.42, 8), frameDark);
     mast.position.set(0, 1.0, 0.85);
@@ -434,7 +429,7 @@ export class ShipScene {
     this.shipGroup.add(scannerGroup);
     this.modules.scanner = scannerGroup;
 
-    // 4. SCUDO DEFLETTORE (Doppia cupola energetica)
+    // 4. SCUDO
     const shieldGroup = new THREE.Group();
     const shieldGeo = new THREE.IcosahedronGeometry(3.2, 2);
 
@@ -463,6 +458,80 @@ export class ShipScene {
     shieldGroup.visible = false;
     this.shipGroup.add(shieldGroup);
     this.modules.shield = shieldGroup;
+  }
+
+  // === CACCIATORE MECCANICO 3D ===
+  buildHunter() {
+    this.hunterGroup = new THREE.Group();
+    this.hunterGroup.visible = false;
+
+    const darkObsidian = new THREE.MeshStandardMaterial({
+      color: 0x11131a,
+      roughness: 0.35,
+      metalness: 0.9,
+    });
+    const crimsonAccent = new THREE.MeshStandardMaterial({
+      color: 0x991b1b,
+      emissive: 0x7f1d1d,
+      emissiveIntensity: 0.7,
+      roughness: 0.3,
+      metalness: 0.7,
+    });
+    const eyeMat = new THREE.MeshBasicMaterial({ color: 0xef4444 });
+
+    // Corpo predatorio affilato
+    const body = new THREE.Mesh(
+      new THREE.OctahedronGeometry(1.15, 0),
+      darkObsidian
+    );
+    body.scale.set(1.4, 0.55, 2.3);
+    this.hunterGroup.add(body);
+
+    // Ali a falce
+    [-1, 1].forEach((side) => {
+      const wing = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.12, 1.2), darkObsidian);
+      wing.position.set(side * 1.9, 0.15, 0.3);
+      wing.rotation.z = side * 0.25;
+      wing.rotation.y = side * -0.35;
+      this.hunterGroup.add(wing);
+
+      const blade = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.08, 0.24), crimsonAccent);
+      blade.position.set(side * 2.1, 0.2, -0.35);
+      blade.rotation.y = side * -0.35;
+      this.hunterGroup.add(blade);
+    });
+
+    // Occhio scanner rosso
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.32, 12, 12), eyeMat);
+    eye.position.set(0, -0.1, 1.8);
+    this.hunterGroup.add(eye);
+
+    // Cono volumetrico dello scanner rosso
+    this.hunterBeamPivot = new THREE.Group();
+    this.hunterBeamPivot.position.set(0, -0.1, 1.9);
+
+    const beamGeo = new THREE.ConeGeometry(2.6, 11, 16, 1, true);
+    beamGeo.translate(0, -5.5, 0);
+    beamGeo.rotateX(-Math.PI / 2);
+
+    const beamMat = new THREE.MeshBasicMaterial({
+      color: 0xef4444,
+      transparent: true,
+      opacity: 0.16,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+    });
+    const beamMesh = new THREE.Mesh(beamGeo, beamMat);
+    this.hunterBeamPivot.add(beamMesh);
+    this.hunterGroup.add(this.hunterBeamPivot);
+
+    // Luce rossa che illumina lo scafo del giocatore quando il Cacciatore è vicino
+    this.hunterLight = new THREE.PointLight(0xef4444, 4, 22);
+    this.hunterLight.position.set(0, -0.5, 2.2);
+    this.hunterGroup.add(this.hunterLight);
+
+    this.hunterGroup.position.set(5.5, 3.2, -10);
+    this.scene.add(this.hunterGroup);
   }
 
   initEngineParticles() {
@@ -508,14 +577,96 @@ export class ShipScene {
     this.speedMultiplier = mult;
   }
 
+  setGhostMode(isGhost) {
+    this.ghostMode = isGhost;
+    if (this.cockpitGlassMat) {
+      this.cockpitGlassMat.emissiveIntensity = isGhost ? 0.04 : 1.1;
+      this.cockpitGlassMat.color.setHex(isGhost ? 0x0f172a : 0x38bdf8);
+    }
+    this.keyLight.intensity = isGhost ? 1.1 : 2.6;
+    this.rimLight.intensity = isGhost ? 0.45 : 1.8;
+  }
+
+  setHunterActive(isActive) {
+    if (isActive && !this.hunterActive) {
+      this.hunterPassPhase = 0;
+    }
+    this.hunterActive = isActive;
+    this.hunterGroup.visible = isActive;
+  }
+
   triggerDamage() {
     this.damageFlash = 1.0;
   }
-  
+
+  triggerHunterExplosion() {
+    this.explosionFlash = 1.0;
+  }
+
   setBiomeTint(hexColor) {
     const color = new THREE.Color(hexColor);
     this.scene.background = color;
     this.scene.fog.color = color;
+  }
+  buildChassisExtras(frameDark) {
+    this.chassisExtras = {};
+
+    // EXTRA 3D: SPETTRO V-7 (Ali a freccia + doppie derive stealth)
+    const stealthGroup = new THREE.Group();
+    const stealthWingGeo = new THREE.BoxGeometry(2.4, 0.08, 1.8);
+    [-1, 1].forEach((side) => {
+      const w = new THREE.Mesh(stealthWingGeo, this.hullArmorMat);
+      w.position.set(side * 2.5, -0.12, 1.0);
+      w.rotation.y = side * -0.42;
+      w.rotation.z = side * -0.08;
+      stealthGroup.add(w);
+
+      const fin = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.9, 1.2), this.hazardMat);
+      fin.position.set(side * 2.1, 0.48, 1.45);
+      fin.rotation.z = side * -0.3;
+      stealthGroup.add(fin);
+    });
+    stealthGroup.visible = false;
+    this.shipGroup.add(stealthGroup);
+    this.chassisExtras.stealth = stealthGroup;
+
+    // EXTRA 3D: TITANO INDUSTRIALE (Corazze laterali + pod cargo pesanti + rostro)
+    const titanGroup = new THREE.Group();
+    [-1.45, 1.45].forEach((x) => {
+      const cargoPod = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.72, 2.2), this.hullArmorMat);
+      cargoPod.position.set(x, -0.35, 0.45);
+      const bumper = new THREE.Mesh(new THREE.BoxGeometry(0.68, 0.22, 0.5), this.hazardMat);
+      bumper.position.set(x, -0.35, -0.68);
+      titanGroup.add(cargoPod, bumper);
+    });
+    const heavyCrown = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.25, 1.8), frameDark);
+    heavyCrown.position.set(0, 0.92, 0.65);
+    titanGroup.add(heavyCrown);
+
+    titanGroup.visible = false;
+    this.shipGroup.add(titanGroup);
+    this.chassisExtras.titan = titanGroup;
+  }
+
+  setChassis(chassisId) {
+    if (!this.hullPrimaryMat || !this.chassisExtras) return;
+
+    this.chassisExtras.stealth.visible = chassisId === 'stealth';
+    this.chassisExtras.titan.visible = chassisId === 'titan';
+
+    if (chassisId === 'stealth') {
+      this.hullPrimaryMat.color.setHex(0x1e293b);
+      this.hullArmorMat.color.setHex(0x0f172a);
+      this.hazardMat.color.setHex(0x06b6d4); // Accenti ciano stealth
+    } else if (chassisId === 'titan') {
+      this.hullPrimaryMat.color.setHex(0x64748b);
+      this.hullArmorMat.color.setHex(0x334155);
+      this.hazardMat.color.setHex(0xeab308); // Giallo industriale pesante
+    } else {
+      this.hullPrimaryMat.color.setHex(0x526277);
+      this.hullArmorMat.color.setHex(0x2a3547);
+      this.hazardMat.color.setHex(0xea580c); // Arancione classico MK-I
+    }
   }
 
   animate() {
@@ -523,12 +674,13 @@ export class ShipScene {
     const delta = Math.min(0.05, this.clock.getDelta());
     const elapsed = this.clock.getElapsedTime();
 
-    // 1. Rollio e galleggiamento naturale della nave
-    this.shipGroup.position.y = Math.sin(elapsed * 1.6) * 0.14;
-    this.shipGroup.rotation.z = Math.sin(elapsed * 0.95) * 0.05;
-    this.shipGroup.rotation.x = Math.cos(elapsed * 0.7) * 0.025;
+    // 1. Galleggiamento nave (più lento e silenzioso in Modalità Fantasma)
+    const driftScale = this.ghostMode ? 0.45 : 1.0;
+    this.shipGroup.position.y = Math.sin(elapsed * 1.6 * driftScale) * 0.14;
+    this.shipGroup.rotation.z = Math.sin(elapsed * 0.95 * driftScale) * 0.05;
+    this.shipGroup.rotation.x = Math.cos(elapsed * 0.7 * driftScale) * 0.025;
 
-    // 2. Scossa impatto & lampo rosso
+    // 2. Scossa impatto & esplosione Cacciatore
     if (this.damageFlash > 0) {
       this.damageFlash = Math.max(0, this.damageFlash - delta * 2.4);
       this.damageLight.intensity = this.damageFlash * 15;
@@ -538,14 +690,21 @@ export class ShipScene {
       this.shipGroup.position.x = 0;
     }
 
-    // 3. Luci di navigazione lampeggianti
-    const blinkOn = Math.sin(elapsed * 5.0) > 0.2;
+    if (this.explosionFlash > 0) {
+      this.explosionFlash = Math.max(0, this.explosionFlash - delta * 1.6);
+      this.explosionLight.intensity = this.explosionFlash * 26;
+    } else {
+      this.explosionLight.intensity = 0;
+    }
+
+    // 3. Luci navigazione (spente in Modalità Fantasma)
+    const blinkOn = !this.ghostMode && Math.sin(elapsed * 5.0) > 0.2;
     this.navLights.forEach((light) => {
       light.visible = blinkOn;
     });
 
     // 4. Propulsori & particelle
-    const isMoving = this.speedMultiplier > 0;
+    const isMoving = this.speedMultiplier > 0 && !this.ghostMode;
     const flicker = 0.85 + Math.random() * 0.3;
 
     this.flames.forEach((flame) => {
@@ -579,20 +738,45 @@ export class ShipScene {
       pPos.needsUpdate = true;
     }
 
-    // 5. Animazione moduli 3D
-    if (this.modules.drill.visible) {
+    // 5. Animazione moduli
+    if (this.modules.drill.visible && !this.ghostMode) {
       this.drillHead.rotation.z += delta * (isMoving ? 5.5 : 1.5);
     }
-    if (this.modules.scanner.visible) {
+    if (this.modules.scanner.visible && !this.ghostMode) {
       this.radarDish.rotation.y += delta * 2.0;
     }
     if (this.modules.shield.visible) {
       this.modules.shield.rotation.y -= delta * 0.2;
-      this.shieldWire.material.opacity = 0.14 + Math.sin(elapsed * 3.2) * 0.05;
+      this.shieldWire.material.opacity = this.ghostMode
+        ? 0.03
+        : 0.14 + Math.sin(elapsed * 3.2) * 0.05;
+      this.shieldShell.material.opacity = this.ghostMode ? 0.01 : 0.06;
     }
 
-    // 6. Movimento stelle & detriti spaziali
-    const worldSpeed = isMoving ? 9 * this.speedMultiplier : 0.6;
+    // 6. Animazione Cacciatore Meccanico 3D
+    if (this.hunterActive) {
+      this.hunterPassPhase += delta;
+      // Vola in orbita minacciosa sopra/di fianco alla nave, spazzando col raggio rosso
+      const hx = Math.sin(this.hunterPassPhase * 0.55) * 6.5;
+      const hy = 2.6 + Math.cos(this.hunterPassPhase * 0.9) * 0.7;
+      const hz = this.ghostMode
+        ? -7 + Math.sin(this.hunterPassPhase * 0.4) * 5.5
+        : -5.5 + Math.cos(this.hunterPassPhase * 0.55) * 2.5;
+
+      this.hunterGroup.position.set(hx, hy, hz);
+      this.hunterGroup.lookAt(0, 0, 0);
+
+      // Il raggio scanner cerca nello spazio (se Fantasma, passa accanto senza agganciare)
+      const sweep = this.ghostMode
+        ? Math.sin(elapsed * 2.2) * 0.55
+        : Math.sin(elapsed * 3.5) * 0.18;
+      this.hunterBeamPivot.rotation.y = sweep;
+      this.hunterBeamPivot.rotation.x = Math.cos(elapsed * 1.7) * 0.12;
+      this.hunterLight.intensity = 3.2 + Math.sin(elapsed * 8) * 1.2;
+    }
+
+    // 7. Movimento stelle & detriti
+    const worldSpeed = isMoving ? 9 * this.speedMultiplier : this.ghostMode ? 0.15 : 0.6;
     const starPos = this.stars.geometry.attributes.position;
     for (let i = 0; i < starPos.count; i++) {
       let z = starPos.getZ(i) + worldSpeed * delta;

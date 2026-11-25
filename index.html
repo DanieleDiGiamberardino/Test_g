@@ -64,22 +64,35 @@
             <div id="node-bar" class="progress-fill"></div>
           </div>
           <div id="node-label" class="hint">In attesa di lancio...</div>
-
+          <hr />
+          <div class="panel-title">
+            <span>TRACCIA TERMICA</span>
+            <span id="val-heat" class="sub-tag">0%</span>
+          </div>
+          <div class="progress-wrap">
+            <div id="heat-bar" class="progress-fill heat-fill"></div>
+          </div>
+          <button id="btn-ghost" class="btn-ghost">👻 MODALITÀ FANTASMA</button>
           <hr />
           <div class="panel-title"><span>EQUIPAGGIO</span></div>
           <div id="crew-list" class="crew-list"></div>
 
         </aside>
-
         <!-- TELEMETRIA LOG -->
         <aside class="hud-panel right-panel">
+          <div class="panel-title">
+            <span>RELIQUIE RUN</span>
+            <span id="relic-count" class="sub-tag">0/3</span>
+          </div>
+          <div id="relic-list" class="relic-list"></div>
+          <hr />
           <div class="panel-title">
             <span>TELEMETRIA</span>
             <button id="btn-reset" class="btn-mini">RESET</button>
           </div>
           <div id="log-feed" class="log-feed"></div>
         </aside>
-      </div>
+      </div> <!-- <--- ASSICURATI CHE CI SIA QUESTO -->
 
       <!-- DOCK INFERIORE (HANGAR / DILEMMA / FINE SETTORE) -->
       <footer id="bottom-dock" class="hud-panel bottom-dock"></footer>

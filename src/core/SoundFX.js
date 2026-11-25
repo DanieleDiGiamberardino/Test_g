@@ -1,10 +1,10 @@
 const BIOME_SCALES = {
   hangar: {
     chords: [
-      [50, 57, 60, 64], // Dm9
-      [46, 53, 57, 60], // Bbmaj7
-      [43, 50, 53, 57], // Gm9
-      [45, 52, 55, 60], // Am7
+      [50, 57, 60, 64],
+      [46, 53, 57, 60],
+      [43, 50, 53, 57],
+      [45, 52, 55, 60],
     ],
     arp: [62, 64, 67, 69, 72, 74, 76],
     padCutoff: 520,
@@ -12,10 +12,10 @@ const BIOME_SCALES = {
   },
   scrap_belt: {
     chords: [
-      [50, 57, 60, 64], // Dm9 (D Dorian)
-      [55, 62, 65, 69], // G9
-      [48, 55, 59, 62], // Cmaj9
-      [45, 52, 55, 59], // Am9
+      [50, 57, 60, 64],
+      [55, 62, 65, 69],
+      [48, 55, 59, 62],
+      [45, 52, 55, 59],
     ],
     arp: [62, 64, 65, 69, 71, 74, 76],
     padCutoff: 780,
@@ -23,10 +23,10 @@ const BIOME_SCALES = {
   },
   ionic_nebula: {
     chords: [
-      [54, 61, 64, 68], // F#m9
-      [50, 57, 61, 66], // Dmaj7
-      [49, 56, 59, 64], // C#m7
-      [52, 59, 63, 66], // Emaj9
+      [54, 61, 64, 68],
+      [50, 57, 61, 66],
+      [49, 56, 59, 64],
+      [52, 59, 63, 66],
     ],
     arp: [66, 68, 69, 73, 76, 78, 81],
     padCutoff: 950,
@@ -34,10 +34,10 @@ const BIOME_SCALES = {
   },
   war_graveyard: {
     chords: [
-      [48, 55, 56, 62], // Cm(b6)
-      [44, 51, 55, 58], // Abmaj9
-      [46, 53, 56, 60], // Bbm9
-      [43, 50, 53, 56], // G7b9
+      [48, 55, 56, 62],
+      [44, 51, 55, 58],
+      [46, 53, 56, 60],
+      [43, 50, 53, 56],
     ],
     arp: [60, 61, 63, 67, 68, 70, 72],
     padCutoff: 600,
@@ -45,10 +45,10 @@ const BIOME_SCALES = {
   },
   cryo_drift: {
     chords: [
-      [52, 59, 62, 66], // Em9
-      [48, 55, 59, 64], // Cmaj7
-      [45, 52, 55, 59], // Am9
-      [47, 54, 57, 62], // Bm7
+      [52, 59, 62, 66],
+      [48, 55, 59, 64],
+      [45, 52, 55, 59],
+      [47, 54, 57, 62],
     ],
     arp: [64, 67, 71, 74, 76, 79, 83],
     padCutoff: 1100,
@@ -56,10 +56,10 @@ const BIOME_SCALES = {
   },
   xeno_mega: {
     chords: [
-      [49, 56, 60, 63], // C#m(maj7) / alien
-      [47, 54, 58, 61], // Bmaj9
-      [45, 52, 56, 59], // Amaj9
-      [44, 51, 54, 58], // G#m9
+      [49, 56, 60, 63],
+      [47, 54, 58, 61],
+      [45, 52, 56, 59],
+      [44, 51, 54, 58],
     ],
     arp: [61, 63, 66, 68, 72, 75, 78],
     padCutoff: 850,
@@ -76,7 +76,6 @@ export class SoundFX {
     this.ctx = null;
     this.initialized = false;
 
-    // Preferenze salvate
     this.muted = localStorage.getItem('derelict_muted') === '1';
     this.volumes = {
       music: Number(localStorage.getItem('derelict_vol_music') ?? 0.55),
@@ -84,12 +83,13 @@ export class SoundFX {
       engine: Number(localStorage.getItem('derelict_vol_engine') ?? 0.45),
     };
 
-    // Contesto di gioco corrente
     this.gameContext = {
       mode: 'HANGAR',
       biomeId: 'scrap_belt',
       speed: 0,
       inDilemma: false,
+      ghostMode: false,
+      hunterActive: false,
     };
 
     this.step = 0;
@@ -111,7 +111,6 @@ export class SoundFX {
     this.ctx = new AudioCtx();
     this.initialized = true;
 
-    // === MASTER CHAIN (Compressor -> MasterGain -> Destination) ===
     this.compressor = this.ctx.createDynamicsCompressor();
     this.compressor.threshold.value = -16;
     this.compressor.knee.value = 18;
@@ -123,7 +122,6 @@ export class SoundFX {
     this.compressor.connect(this.masterGain);
     this.masterGain.connect(this.ctx.destination);
 
-    // === BUS SEPARATI ===
     this.musicBus = this.ctx.createGain();
     this.musicBus.gain.value = this.volumes.music;
 
@@ -133,7 +131,6 @@ export class SoundFX {
     this.engineBus = this.ctx.createGain();
     this.engineBus.gain.value = this.volumes.engine;
 
-    // Filtro musicale (si chiude leggermente nei dilemmi per creare tensione)
     this.musicFilter = this.ctx.createBiquadFilter();
     this.musicFilter.type = 'lowpass';
     this.musicFilter.frequency.value = 1600;
@@ -144,7 +141,6 @@ export class SoundFX {
     this.sfxBus.connect(this.compressor);
     this.engineBus.connect(this.compressor);
 
-    // === RIVERBERO SPAZIALE PROCEDURALE ===
     this.reverb = this.ctx.createConvolver();
     this.reverb.buffer = this.createReverbIR(2.8, 2.3);
     this.reverbWet = this.ctx.createGain();
@@ -152,9 +148,8 @@ export class SoundFX {
     this.reverb.connect(this.reverbWet);
     this.reverbWet.connect(this.musicFilter);
 
-    // === DELAY STEREO PER ARPEGGI E CHIME ===
     this.delay = this.ctx.createDelay(1.0);
-    this.delay.delayTime.value = 0.375; // 3/8 ritmico
+    this.delay.delayTime.value = 0.375;
     this.delayFeedback = this.ctx.createGain();
     this.delayFeedback.gain.value = 0.36;
     this.delayFilter = this.ctx.createBiquadFilter();
@@ -167,7 +162,6 @@ export class SoundFX {
     this.delayFilter.connect(this.reverb);
     this.delayFilter.connect(this.musicBus);
 
-    // Avvia strato motori + sequencer musicale
     this.setupEngineAmbience();
     this.startMusicSequencer();
     this.applyContextToAudio();
@@ -186,7 +180,6 @@ export class SoundFX {
     return buffer;
   }
 
-  // === ROMBO MOTORI CONTINUO ===
   setupEngineAmbience() {
     const rate = this.ctx.sampleRate;
     const buffer = this.ctx.createBuffer(1, rate * 3, rate);
@@ -194,7 +187,6 @@ export class SoundFX {
     let lastOut = 0;
     for (let i = 0; i < data.length; i++) {
       const white = Math.random() * 2 - 1;
-      // Rumore marrone morbido
       lastOut = (lastOut + 0.03 * white) / 1.03;
       data[i] = lastOut * 2.5;
     }
@@ -228,7 +220,6 @@ export class SoundFX {
     this.engineSubOsc.start();
   }
 
-  // === CONTROLLO VOLUMI & CONTESTO ===
   toggleMute() {
     this.muted = !this.muted;
     localStorage.setItem('derelict_muted', this.muted ? '1' : '0');
@@ -255,8 +246,8 @@ export class SoundFX {
     if (channel === 'engine') this.engineBus.gain.setTargetAtTime(v, now, 0.06);
   }
 
-  setContext({ mode, biomeId, speed, inDilemma }) {
-    this.gameContext = { mode, biomeId, speed, inDilemma };
+  setContext({ mode, biomeId, speed, inDilemma, ghostMode = false, hunterActive = false }) {
+    this.gameContext = { mode, biomeId, speed, inDilemma, ghostMode, hunterActive };
     if (this.initialized) {
       this.applyContextToAudio();
     }
@@ -270,61 +261,72 @@ export class SoundFX {
   applyContextToAudio() {
     if (!this.initialized) return;
     const now = this.ctx.currentTime;
-    const { mode, speed, inDilemma } = this.gameContext;
-    const scale = this.getActiveScale();
+    const { mode, speed, inDilemma, ghostMode, hunterActive } = this.gameContext;
 
-    // Filtro musica: più scuro e tensivo nei dilemmi
-    const targetMusicCutoff = inDilemma ? 420 : mode === 'HANGAR' ? 950 : 2400;
-    this.musicFilter.frequency.setTargetAtTime(targetMusicCutoff, now, 0.45);
+    // Filtro musica: bassissimo in Modalità Fantasma, scuro nei dilemmi/Cacciatore
+    let targetMusicCutoff = 2400;
+    if (ghostMode) targetMusicCutoff = 230;
+    else if (hunterActive) targetMusicCutoff = 520;
+    else if (inDilemma) targetMusicCutoff = 420;
+    else if (mode === 'HANGAR') targetMusicCutoff = 950;
 
-    // Motori: ronzio leggero in hangar, spinta modulata in volo
-    const isFlying = mode === 'EXPEDITION' && speed > 0 && !inDilemma;
-    const engineVol = isFlying ? Math.min(0.24, 0.07 + speed * 0.035) : 0.018;
+    this.musicFilter.frequency.setTargetAtTime(targetMusicCutoff, now, 0.4);
+
+    // Motori: silenzio assoluto in Modalità Fantasma
+    const isFlying = mode === 'EXPEDITION' && speed > 0 && !inDilemma && !ghostMode;
+    const engineVol = ghostMode
+      ? 0.0005
+      : isFlying
+      ? Math.min(0.24, 0.07 + speed * 0.035)
+      : 0.018;
     const engineCutoff = isFlying ? Math.min(340, 110 + speed * 45) : 68;
     const subFreq = isFlying ? Math.min(72, 46 + speed * 5.5) : 38;
 
-    this.engineDynamicGain.gain.setTargetAtTime(engineVol, now, 0.35);
-    this.engineFilter.frequency.setTargetAtTime(engineCutoff, now, 0.35);
-    this.engineSubOsc.frequency.setTargetAtTime(subFreq, now, 0.35);
-    this.engineSubGain.gain.setTargetAtTime(isFlying ? 0.35 : 0.12, now, 0.35);
-
-    // Piccolo accento quando cambia il bioma
-    this.padCutoffTarget = scale.padCutoff;
+    this.engineDynamicGain.gain.setTargetAtTime(engineVol, now, 0.3);
+    this.engineFilter.frequency.setTargetAtTime(engineCutoff, now, 0.3);
+    this.engineSubOsc.frequency.setTargetAtTime(subFreq, now, 0.3);
+    this.engineSubGain.gain.setTargetAtTime(isFlying ? 0.35 : ghostMode ? 0.001 : 0.12, now, 0.3);
   }
 
-  // === SEQUENCER MUSICALE PROCEDURALE ===
   startMusicSequencer() {
     if (this.seqInterval) clearInterval(this.seqInterval);
-
-    // Suona subito il primo pad per non lasciare silenzio iniziale
     setTimeout(() => this.triggerPadChord(), 150);
 
     this.seqInterval = setInterval(() => {
       if (!this.initialized || this.muted || this.ctx.state !== 'running') return;
 
-      const { mode, speed, inDilemma } = this.gameContext;
+      const { mode, speed, inDilemma, ghostMode, hunterActive } = this.gameContext;
       this.step += 1;
 
-      // 1. PAD AMBIENT: cambia accordo ogni 32 step (~8 secondi)
-      if (this.step % 32 === 0) {
+      if (this.step % 32 === 0 && !ghostMode) {
         this.chordIndex = (this.chordIndex + 1) % 4;
         this.triggerPadChord();
       }
 
-      // 2. BATTITO DI TENSIONE (solo durante i dilemmi)
-      if (inDilemma && this.step % 4 === 0) {
-        this.triggerTensionPulse();
+      // Cacciatore attivo: battito profondo + ping sonar periodico
+      if (hunterActive) {
+        if (this.step % 4 === 0) this.triggerTensionPulse(ghostMode ? 0.22 : 0.18);
+        if (this.step % 12 === 0) this.playHunterPing();
         return;
       }
 
-      // 3. ARPEGGIO MELODICO (in spedizione, densità legata alla velocità)
+      if (ghostMode) {
+        // Silenzio teso con raro battito sub
+        if (this.step % 8 === 0) this.triggerTensionPulse(0.08);
+        return;
+      }
+
+      if (inDilemma && this.step % 4 === 0) {
+        this.triggerTensionPulse(0.15);
+        return;
+      }
+
       if (mode === 'EXPEDITION' && speed > 0) {
         const divider = speed >= 2.8 ? 1 : speed >= 1.7 ? 2 : 3;
         if (this.step % divider === 0 && Math.random() < 0.72) {
           this.triggerArpNote();
         }
       } else if (mode === 'HANGAR') {
-        // In Hangar, solo rare note cristalline lente
         if (this.step % 8 === 0 && Math.random() < 0.5) {
           this.triggerArpNote(0.55);
         }
@@ -358,7 +360,6 @@ export class SoundFX {
       const osc = this.ctx.createOscillator();
       osc.type = idx === 0 ? 'triangle' : 'sawtooth';
       osc.frequency.value = midiToFreq(midi);
-      // Leggero detune analogico caldo
       osc.detune.value = (idx % 2 === 0 ? 1 : -1) * (4 + idx * 1.5);
 
       const voiceGain = this.ctx.createGain();
@@ -402,7 +403,7 @@ export class SoundFX {
     osc.stop(now + 0.75);
   }
 
-  triggerTensionPulse() {
+  triggerTensionPulse(vol = 0.16) {
     const now = this.ctx.currentTime;
     const scale = this.getActiveScale();
     const rootMidi = scale.chords[this.chordIndex % scale.chords.length][0] - 12;
@@ -413,7 +414,7 @@ export class SoundFX {
 
     const gain = this.ctx.createGain();
     gain.gain.setValueAtTime(0.0001, now);
-    gain.gain.linearRampToValueAtTime(0.16, now + 0.03);
+    gain.gain.linearRampToValueAtTime(vol, now + 0.03);
     gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.55);
 
     osc.connect(gain);
@@ -422,7 +423,7 @@ export class SoundFX {
     osc.stop(now + 0.6);
   }
 
-  // === EFFETTI SONORI ARMONICI (SFX) ===
+  // === EFFETTI SONORI ===
   sfxTone(freq, duration, type = 'triangle', vol = 0.1, delay = 0, slideTo = null, sendReverb = false) {
     if (this.muted) return;
     this.init();
@@ -454,6 +455,27 @@ export class SoundFX {
     const scale = this.getActiveScale();
     const note = scale.arp[1] || 64;
     this.sfxTone(midiToFreq(note), 0.06, 'triangle', 0.06, 0, midiToFreq(note - 5));
+  }
+
+  playGhostToggle(isOn) {
+    if (isOn) {
+      this.sfxTone(320, 0.55, 'sine', 0.1, 0, 58, true);
+      this.sfxTone(180, 0.45, 'triangle', 0.07, 0.05, 42);
+    } else {
+      this.sfxTone(70, 0.4, 'triangle', 0.09, 0, 310, true);
+      this.sfxTone(140, 0.35, 'sine', 0.07, 0.08, 440, true);
+    }
+  }
+
+  playHunterAlert() {
+    this.sfxTone(92, 0.9, 'sawtooth', 0.14, 0, 65, true);
+    this.sfxTone(185, 0.7, 'square', 0.07, 0.12, 130, true);
+    this.playHunterPing();
+  }
+
+  playHunterPing() {
+    this.sfxTone(980, 0.45, 'sine', 0.075, 0, 960, true);
+    this.sfxTone(1470, 0.35, 'triangle', 0.035, 0.02, 1440, true);
   }
 
   playReactorPip(level) {
@@ -495,11 +517,9 @@ export class SoundFX {
     this.init();
     if (!this.ctx) return;
 
-    // Sub-drop + colpo filtrato
     this.sfxTone(135, 0.34, 'sawtooth', 0.14, 0, 34);
     this.sfxTone(85, 0.38, 'square', 0.09, 0.03, 28);
 
-    // Burst di rumore per simulare detriti sullo scafo
     const now = this.ctx.currentTime;
     const len = Math.floor(this.ctx.sampleRate * 0.25);
     const buf = this.ctx.createBuffer(1, len, this.ctx.sampleRate);

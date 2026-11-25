@@ -2,7 +2,7 @@ import './style.css';
 import { ShipScene } from './3d/ShipScene.js';
 import { SoundFX } from './core/SoundFX.js';
 import { GameEngine } from './core/GameEngine.js';
-import { MODULES, TRAITS, BIOMES, TECH_TREE } from './data/gameData.js';
+import { MODULES, TRAITS, BIOMES, TECH_TREE, CHASSIS, RELICS } from './data/gameData.js';
 
 const shipScene = new ShipScene(document.getElementById('canvas-container'));
 const soundFX = new SoundFX();
@@ -15,15 +15,20 @@ const elCores = document.getElementById('val-cores');
 const elPowerFree = document.getElementById('power-free');
 const elReactor = document.getElementById('reactor-controls');
 const elCrewList = document.getElementById('crew-list');
+const elRelicCount = document.getElementById('relic-count');
+const elRelicList = document.getElementById('relic-list');
 const elNodeBar = document.getElementById('node-bar');
 const elNodeLabel = document.getElementById('node-label');
+const elHeatVal = document.getElementById('val-heat');
+const elHeatBar = document.getElementById('heat-bar');
+const btnGhost = document.getElementById('btn-ghost');
 const elLogFeed = document.getElementById('log-feed');
 const elDock = document.getElementById('bottom-dock');
 const btnAiMode = document.getElementById('btn-aimode');
 const selProtocol = document.getElementById('sel-protocol');
 const btnMute = document.getElementById('btn-mute');
 
-let hangarTab = 'workshop'; // 'workshop' | 'tech'
+let hangarTab = 'workshop'; // 'workshop' | 'tech' | 'chassis'
 let engine;
 
 function updateMuteIcon() {
@@ -33,14 +38,26 @@ updateMuteIcon();
 
 function renderUI(lightUpdate = false) {
   const s = engine.state;
+  const maxHull = engine.getMaxHull();
+  const maxFuel = engine.getMaxFuel();
 
-  elHull.textContent = `${Math.ceil(s.hull)}/${s.maxHull}`;
-  elFuel.textContent = `${Math.ceil(s.fuel)}/${s.maxFuel}`;
+  elHull.textContent = `${Math.ceil(s.hull)}/${maxHull}`;
+  elFuel.textContent = `${Math.ceil(s.fuel)}/${maxFuel}`;
   elScrap.textContent =
     s.mode === 'EXPEDITION' ? `${s.bankScrap} (+${s.cargoScrap})` : `${s.bankScrap}`;
   elCores.textContent =
     s.mode === 'EXPEDITION' ? `${s.bankCores} (+${s.cargoCores})` : `${s.bankCores}`;
   elNodeBar.style.width = `${s.nodeProgress}%`;
+
+  const heatPct = Math.round(s.heat);
+  elHeatVal.textContent = `${heatPct}%`;
+  elHeatVal.style.color = heatPct >= 75 ? '#f87171' : heatPct >= 45 ? '#fbbf24' : '#38bdf8';
+  elHeatBar.style.width = `${heatPct}%`;
+  elHeatBar.classList.toggle('danger', heatPct >= 75);
+
+  btnGhost.disabled = s.mode !== 'EXPEDITION';
+  btnGhost.classList.toggle('active', s.ghostMode);
+  btnGhost.textContent = s.ghostMode ? '👻 FANTASMA: ATTIVO' : '👻 MODALITÀ FANTASMA';
 
   if (lightUpdate) {
     const timerBar = document.getElementById('dilemma-timer-bar');
@@ -52,17 +69,34 @@ function renderUI(lightUpdate = false) {
     if (timerText && engine.activeDilemma) {
       timerText.textContent = `Scelta automatica IA tra ${Math.ceil(engine.dilemmaTimer)}s`;
     }
+
+    const hunterBar = document.getElementById('hunter-timer-bar');
+    const hunterText = document.getElementById('hunter-timer-text');
+    const stealthBar = document.getElementById('hunter-stealth-bar');
+    if (engine.hunterActive) {
+      if (hunterBar) {
+        hunterBar.style.width = `${Math.max(0, (engine.hunterTimer / engine.hunterMaxTime) * 100)}%`;
+      }
+      if (hunterText) {
+        hunterText.textContent = `Impatto/IA tra ${Math.ceil(engine.hunterTimer)}s`;
+      }
+      if (stealthBar) {
+        stealthBar.style.width = `${Math.min(100, engine.hunterStealthProgress)}%`;
+      }
+    }
     return;
   }
 
   // Badge Settore
   if (s.mode === 'HANGAR') {
-    elSector.textContent = 'HANGAR ORBITALE';
+    elSector.textContent = `HANGAR // ${engine.getChassis().name.toUpperCase()}`;
     elNodeLabel.textContent = 'Ormeggiata • Potenzia la nave o decolla';
   } else {
     const biome = engine.getCurrentBiome();
     elSector.textContent = `SETTORE ${s.sector} // ${biome.name.toUpperCase()}`;
-    elNodeLabel.textContent = `Nodo ${s.node}/${s.nodesPerSector} • Stiva: +${s.cargoScrap} R, +${s.cargoCores} N`;
+    elNodeLabel.textContent = s.ghostMode
+      ? '👻 Deriva Silenziosa • Raffreddamento scafo'
+      : `Nodo ${s.node}/${s.nodesPerSector} • Stiva: +${s.cargoScrap} R, +${s.cargoCores} N`;
   }
 
   // IA
@@ -71,8 +105,9 @@ function renderUI(lightUpdate = false) {
   selProtocol.value = s.protocol;
 
   // Reattore
+  const totalPower = engine.getPowerTotal();
   const usedPower = s.power.engines + s.power.shields + s.power.scanners;
-  elPowerFree.textContent = `LIBERI: ${s.powerTotal - usedPower}`;
+  elPowerFree.textContent = `LIBERI: ${totalPower - usedPower}`;
   const sysNames = [
     { key: 'engines', label: 'MOTORI' },
     { key: 'shields', label: 'SCUDI' },
@@ -125,6 +160,17 @@ function renderUI(lightUpdate = false) {
     })
     .join('');
 
+  // Reliquie Run
+  elRelicCount.textContent = `${s.relics.length}/3`;
+  elRelicList.innerHTML = s.relics.length
+    ? s.relics
+        .map((rId) => {
+          const r = RELICS[rId];
+          return `<div class="relic-pill"><strong>${r.icon} ${r.name}</strong><small>${r.desc}</small></div>`;
+        })
+        .join('')
+    : `<div class="hint">Nessuna reliquia equipaggiata</div>`;
+
   // Telemetria
   elLogFeed.innerHTML = engine.logs
     .map((l) =>
@@ -139,8 +185,86 @@ function renderUI(lightUpdate = false) {
 
 function renderBottomDock() {
   const s = engine.state;
+  elDock.classList.toggle('hunter-alert', engine.hunterActive);
 
-  // 1. DILEMMA ATTIVO
+  // 0. DRAFT RELIQUIA ROGUELITE
+  if (engine.pendingRelicChoices) {
+    const cards = engine.pendingRelicChoices
+      .map((rId) => {
+        const r = RELICS[rId];
+        return `
+          <button class="choice-btn" data-relic="${r.id}" style="border-color:#c084fc;">
+            <strong>${r.icon} ${r.name}</strong>
+            <span class="hint">${r.desc}</span>
+          </button>
+        `;
+      })
+      .join('');
+
+    elDock.innerHTML = `
+      <div class="dilemma-header">
+        <span class="dilemma-title" style="color:#c084fc;">✨ RELIQUIA ROGUELITE RILEVATA — SCEGLI 1 POTENZIAMENTO PER QUESTA RUN</span>
+        <button id="btn-skip-relic" class="btn-mini">SALTA</button>
+      </div>
+      <div class="dilemma-choices" style="margin-top:8px;">${cards}</div>
+    `;
+
+    elDock.querySelectorAll('[data-relic]').forEach((btn) => {
+      btn.addEventListener('click', () => engine.pickRelic(btn.dataset.relic));
+    });
+    document.getElementById('btn-skip-relic').addEventListener('click', () => engine.skipRelic());
+    return;
+  }
+
+  // 1. CACCIATORE MECCANICO ATTIVO
+  if (engine.hunterActive) {
+    if (s.ghostMode) {
+      elDock.innerHTML = `
+        <div class="dilemma-header">
+          <span class="dilemma-title" style="color:#38bdf8;">👻 DERIVA SILENZIOSA — SCANSIONE CACCIATORE IN CORSO</span>
+          <span class="hint">Resta spento finché il raggio rosso non ti supera...</span>
+        </div>
+        <div class="progress-wrap" style="height:10px; margin-top:8px;">
+          <div id="hunter-stealth-bar" class="stealth-bar" style="width:${engine.hunterStealthProgress}%"></div>
+        </div>
+      `;
+      return;
+    }
+
+    const trapChance = engine.getHunterTrapChance();
+    const decoyDrop = Math.max(8, Math.floor(s.cargoScrap * 0.25));
+    const timerPct = (engine.hunterTimer / engine.hunterMaxTime) * 100;
+
+    elDock.innerHTML = `
+      <div id="hunter-timer-bar" class="hunter-bar" style="width:${timerPct}%"></div>
+      <div class="dilemma-header">
+        <span class="dilemma-title" style="color:#f87171;">🚨 CACCIATORE MECCANICO IN AVVICINAMENTO</span>
+        <span id="hunter-timer-text" class="hint">Impatto/IA tra ${Math.ceil(engine.hunterTimer)}s</span>
+      </div>
+      <p class="dilemma-text">La tua traccia termica ha attirato un predatore del cimitero. Il raggio scanner sta agganciando lo scafo!</p>
+      <div class="dilemma-choices">
+        <button class="choice-btn" data-hunter="ghost" style="border-color:#38bdf8;">
+          <strong>👻 Spegni Tutto (Fantasma)</strong>
+          <span class="hint">100% sicuro • Ti nascondi e azzeri il calore</span>
+        </button>
+        <button class="choice-btn" data-hunter="decoy" style="border-color:#f59e0b;">
+          <strong>📦 Sgancia Esca (-${decoyDrop} R)</strong>
+          <span class="hint">Lo depisti subito e riparti senza fermarti</span>
+        </button>
+        <button class="choice-btn" data-hunter="trap" style="border-color:#c084fc;">
+          <strong>⚡ Trappola EMP (${trapChance}%)</strong>
+          <span class="hint">Vittoria: +2 Nuclei, +35 R + Reliquia • Fallimento: danni gravi</span>
+        </button>
+      </div>
+    `;
+
+    elDock.querySelectorAll('[data-hunter]').forEach((btn) => {
+      btn.addEventListener('click', () => engine.resolveHunterAction(btn.dataset.hunter));
+    });
+    return;
+  }
+
+  // 2. DILEMMA ATTIVO
   if (engine.activeDilemma) {
     const d = engine.activeDilemma;
     const aiIdx = engine.getAiRecommendedIndex();
@@ -180,7 +304,7 @@ function renderBottomDock() {
     return;
   }
 
-  // 2. FINE SETTORE
+  // 3. FINE SETTORE
   if (engine.sectorComplete) {
     const biomeCards = engine.sectorOptions
       .map((bId) => {
@@ -215,16 +339,19 @@ function renderBottomDock() {
     return;
   }
 
-  // 3. HANGAR (Con Tab OFFICINA | ALBERO TECH)
+  // 4. HANGAR (OFFICINA | ALBERO TECH | TELAI 3D)
   if (s.mode === 'HANGAR') {
     const tabsHeader = `
       <div class="dock-tabs">
         <div class="tab-group">
           <button class="tab-btn ${hangarTab === 'workshop' ? 'active' : ''}" data-tab="workshop">
-            🛠️ OFFICINA & MODULI
+            🛠️ OFFICINA
           </button>
           <button class="tab-btn ${hangarTab === 'tech' ? 'active' : ''}" data-tab="tech">
-            🧬 ALBERO TECNOLOGICO (${s.techs.length}/${TECH_TREE.length})
+            🧬 ALBERO TECH (${s.techs.length}/${TECH_TREE.length})
+          </button>
+          <button class="tab-btn ${hangarTab === 'chassis' ? 'active' : ''}" data-tab="chassis">
+            🚀 TELAI 3D (${s.unlockedChassis.length}/${Object.keys(CHASSIS).length})
           </button>
         </div>
         <button id="btn-launch" class="btn-launch" style="padding:7px 18px; font-size:0.82rem;">
@@ -234,8 +361,8 @@ function renderBottomDock() {
     `;
 
     if (hangarTab === 'workshop') {
-      const repairCost = Math.ceil((s.maxHull - s.hull) * 0.4);
-      const fuelCost = Math.ceil((s.maxFuel - s.fuel) * 0.25);
+      const repairCost = Math.ceil((engine.getMaxHull() - s.hull) * 0.4);
+      const fuelCost = Math.ceil((engine.getMaxFuel() - s.fuel) * 0.25);
       const negTraits = engine.countNegativeTraits();
       const cureCost = negTraits * 15;
 
@@ -279,8 +406,7 @@ function renderBottomDock() {
       elDock.querySelectorAll('[data-buy]').forEach((btn) => {
         btn.addEventListener('click', () => engine.buyModule(btn.dataset.buy));
       });
-    } else {
-      // TAB ALBERO TECNOLOGICO
+    } else if (hangarTab === 'tech') {
       const branches = ['INDUSTRIA', 'AUTOMAZIONE IA', 'SOPRAVVIVENZA'];
       const colsHtml = branches
         .map((bName) => {
@@ -320,9 +446,40 @@ function renderBottomDock() {
       elDock.querySelectorAll('[data-tech]').forEach((btn) => {
         btn.addEventListener('click', () => engine.unlockTech(btn.dataset.tech));
       });
+    } else {
+      // TAB TELAI 3D
+      const chassisCards = Object.values(CHASSIS)
+        .map((ch) => {
+          const unlocked = s.unlockedChassis.includes(ch.id);
+          const equipped = s.chassis === ch.id;
+          const badge = equipped
+            ? '✓ ATTIVO'
+            : unlocked
+            ? 'EQUIPAGGIA'
+            : `${ch.costScrap} R • ${ch.costCores} N`;
+          return `
+            <button
+              class="chassis-card ${equipped ? 'equipped' : unlocked ? 'unlocked' : ''}"
+              data-chassis="${ch.id}"
+              ${equipped ? 'disabled' : ''}
+            >
+              <strong>${ch.name} (${badge})</strong>
+              <small>${ch.desc}</small>
+            </button>
+          `;
+        })
+        .join('');
+
+      elDock.innerHTML = `
+        ${tabsHeader}
+        <div class="chassis-grid">${chassisCards}</div>
+      `;
+
+      elDock.querySelectorAll('[data-chassis]').forEach((btn) => {
+        btn.addEventListener('click', () => engine.selectOrBuyChassis(btn.dataset.chassis));
+      });
     }
 
-    // Eventi comuni Header Hangar
     document.getElementById('btn-launch').addEventListener('click', () => engine.launchExpedition());
     elDock.querySelectorAll('[data-tab]').forEach((btn) => {
       btn.addEventListener('click', () => {
@@ -334,12 +491,16 @@ function renderBottomDock() {
     return;
   }
 
-  // 4. IN VIAGGIO
+  // 5. IN VIAGGIO
   elDock.innerHTML = `
     <div style="display:flex; justify-content:space-between; align-items:center;">
       <div>
-        <strong>NAVIGAZIONE AUTONOMA IN CORSO...</strong>
-        <p class="hint">Sposta energia tra Motori, Scudi e Scanner mentre l'equipaggio esplora il settore.</p>
+        <strong>${s.ghostMode ? '👻 DERIVA SILENZIOSA ATTIVA' : 'NAVIGAZIONE AUTONOMA IN CORSO...'}</strong>
+        <p class="hint">${
+          s.ghostMode
+            ? 'Motori spenti: consumo fuel 0% e dispersione rapida della Traccia Termica.'
+            : 'Attenzione alla Traccia Termica a 2x/3x: oltre l’85% attiri un Cacciatore Meccanico!'
+        }</p>
       </div>
       <button id="btn-abort" style="border-color:#ef4444; color:#fca5a5;">
         Rientro Anticipato (Salva Bottino)
@@ -360,6 +521,7 @@ document.querySelectorAll('.btn-speed').forEach((btn) => {
   });
 });
 
+btnGhost.addEventListener('click', () => engine.toggleGhostMode());
 btnAiMode.addEventListener('click', () => engine.toggleAiMode());
 selProtocol.addEventListener('change', (e) => engine.setProtocol(e.target.value));
 btnMute.addEventListener('click', () => {
@@ -369,7 +531,7 @@ btnMute.addEventListener('click', () => {
 document.getElementById('btn-reset').addEventListener('click', () => {
   if (confirm('Vuoi azzerare i progressi salvati?')) engine.resetSave();
 });
-// Sblocca l'AudioContext al primo clic ovunque così la musica parte subito in Hangar
+
 window.addEventListener(
   'pointerdown',
   () => {
@@ -381,7 +543,6 @@ window.addEventListener(
   { once: true }
 );
 
-// Mini-Mixer Audio
 const btnMixer = document.getElementById('btn-mixer');
 const elMixer = document.getElementById('audio-mixer');
 btnMixer.addEventListener('click', () => {
